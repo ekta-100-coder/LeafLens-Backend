@@ -6,6 +6,12 @@ const morgan = require("morgan");
 const rateLimit = require("express-rate-limit");
 
 const authRoutes = require("./routes/auth.routes");
+const plantRoutes = require("./routes/plant.routes");
+const imageRoutes = require("./routes/image.routes");
+const careRoutes = require("./routes/care.routes");
+const growthRoutes = require("./routes/growth.routes");
+const historyRoutes = require("./routes/history.routes");
+const notificationRoutes = require("./routes/notification.routes");
 
 const env = require("./config/env");
 const errorMiddleware = require("./middleware/error.middleware");
@@ -80,6 +86,21 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/v1/auth", authRoutes);
+
+app.use("/api/v1/plants", plantRoutes);
+
+app.use("/api/v1", imageRoutes);
+
+app.use("/api/v1/care", careRoutes);
+
+app.use("/api/v1/growth", growthRoutes);
+
+app.use("/api/v1/history", historyRoutes);
+
+app.use(
+  "/api/v1/notifications",
+  notificationRoutes
+);
 
 // 404 handler
 app.use((req, res) => {

@@ -1,8 +1,8 @@
 const ApiError = require("../utils/ApiError");
 
-const validate = (schema) => {
+const validate = (schema, source = "body") => {
   return (req, res, next) => {
-    const result = schema.safeParse(req.body);
+    const result = schema.safeParse(req[source]);
 
     if (!result.success) {
       const errors = result.error.issues.map((issue) => ({
@@ -13,8 +13,7 @@ const validate = (schema) => {
       throw new ApiError(400, "Validation failed", errors);
     }
 
-    // Replace request body with validated/transformed data.
-    req.body = result.data;
+    req[source] = result.data;
 
     next();
   };
