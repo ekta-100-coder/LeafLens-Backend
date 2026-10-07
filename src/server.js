@@ -2,6 +2,11 @@ const app = require("./app");
 const env = require("./config/env");
 const { connectDB, disconnectDB } = require("./config/db");
 
+const {
+  startScheduler,
+  stopScheduler,
+} = require("./services/care/scheduler.runner");
+
 let server;
 
 const startServer = async () => {
@@ -14,6 +19,7 @@ const startServer = async () => {
       );
 
       console.log(`Environment: ${env.NODE_ENV}`);
+      startScheduler();
     });
   } catch (error) {
     console.error("Failed to start LeafLens API:", error);
@@ -39,6 +45,8 @@ const shutdown = async (signal) => {
 
       console.log("HTTP server closed.");
     }
+
+    stopScheduler();
 
     await disconnectDB();
 
