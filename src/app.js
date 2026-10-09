@@ -13,6 +13,7 @@ const growthRoutes = require("./routes/growth.routes");
 const historyRoutes = require("./routes/history.routes");
 const notificationRoutes = require("./routes/notification.routes");
 const recommendationRoutes = require("./routes/recommendation.routes");
+const identificationRoutes = require("./routes/identification.routes");
 
 const env = require("./config/env");
 const errorMiddleware = require("./middleware/error.middleware");
@@ -106,6 +107,11 @@ app.use(
 app.use(
   "/api/v1/recommendations",
   recommendationRoutes
+);
+
+app.use(
+  "/api/v1/identification",
+  identificationRoutes
 );
 
 // 404 handler

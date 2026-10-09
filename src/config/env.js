@@ -38,6 +38,10 @@ const envSchema = z.object({
     .string()
     .min(1, "GEMINI_API_KEY is required"),
 
+  GEMINI_MODEL: z
+  .string()
+  .min(1).default("gemini-3.8-flash"),
+
   CLOUDINARY_CLOUD_NAME: z
     .string()
     .min(1, "CLOUDINARY_CLOUD_NAME is required"),
