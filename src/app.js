@@ -1,3 +1,4 @@
+
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -14,6 +15,8 @@ const historyRoutes = require("./routes/history.routes");
 const notificationRoutes = require("./routes/notification.routes");
 const recommendationRoutes = require("./routes/recommendation.routes");
 const identificationRoutes = require("./routes/identification.routes");
+const diagnosisRoutes = require("./routes/diagnosis.routes");
+const assistantRoutes = require("./routes/assistant.routes");
 
 const env = require("./config/env");
 const errorMiddleware = require("./middleware/error.middleware");
@@ -22,6 +25,7 @@ const app = express();
 
 app.disable("x-powered-by");
 
+// Security headers
 app.use(
   helmet({
     crossOriginResourcePolicy: {
@@ -30,6 +34,7 @@ app.use(
   })
 );
 
+// CORS configuration
 app.use(
   cors({
     origin: env.CLIENT_URL,
@@ -37,6 +42,7 @@ app.use(
   })
 );
 
+// Request body parsing
 app.use(
   express.json({
     limit: "2mb",
@@ -52,10 +58,12 @@ app.use(
 
 app.use(cookieParser());
 
+// HTTP request logging
 if (env.NODE_ENV !== "test") {
   app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
 }
 
+// Global API rate limiter
 const globalRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 300,
@@ -69,8 +77,29 @@ const globalRateLimiter = rateLimit({
 
 app.use(globalRateLimiter);
 
+// Stricter rate limiter for AI operations.
+// This limits requests per client IP; it is not a substitute
+// for per-user quotas or authenticated usage limits.
+const aiRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many AI requests. Please try again later.",
+  },
+});
+
+app.use(
+  "/api/v1/assistant",
+  aiRateLimiter,
+  assistantRoutes
+);
+
+// Health check
 app.get("/api/v1/health", (req, res) => {
-  res.status(200).json({
+  return res.status(200).json({
     success: true,
     message: "LeafLens API is running",
     data: {
@@ -80,43 +109,55 @@ app.get("/api/v1/health", (req, res) => {
   });
 });
 
+// API root
 app.get("/", (req, res) => {
-  res.status(200).json({
+  return res.status(200).json({
     success: true,
     message: "Welcome to LeafLens AI API",
   });
 });
 
+// Authentication
 app.use("/api/v1/auth", authRoutes);
 
+// Plant management
 app.use("/api/v1/plants", plantRoutes);
 
+// Plant images
 app.use("/api/v1", imageRoutes);
 
+// Plant care tracking
 app.use("/api/v1/care", careRoutes);
 
+// Growth tracking
 app.use("/api/v1/growth", growthRoutes);
 
+// Plant history
 app.use("/api/v1/history", historyRoutes);
 
-app.use(
-  "/api/v1/notifications",
-  notificationRoutes
-);
+// AI diagnosis
+app.use("/api/v1/diagnosis", aiRateLimiter, diagnosisRoutes);
 
+// Notifications and reminders
+app.use("/api/v1/notifications", notificationRoutes);
+
+// AI and stored recommendations
 app.use(
   "/api/v1/recommendations",
+  aiRateLimiter,
   recommendationRoutes
 );
 
+// AI plant identification
 app.use(
   "/api/v1/identification",
+  aiRateLimiter,
   identificationRoutes
 );
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({
+  return res.status(404).json({
     success: false,
     statusCode: 404,
     message: `Route not found: ${req.method} ${req.originalUrl}`,

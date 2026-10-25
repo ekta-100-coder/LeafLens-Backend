@@ -1,14 +1,16 @@
-const express = require("express");
 
-const {
-  getPlantRecommendations,
-  getRecommendationById,
-  updateRecommendationStatus,
-  deleteRecommendation,
-} = require("../controllers/recommendation.controller");
+const express = require("express");
 
 const authenticate = require("../middleware/auth.middleware");
 const validate = require("../middleware/validation.middleware");
+
+const {
+  generatePlantRecommendationsController,
+  getPlantRecommendationsController,
+  getRecommendationByIdController,
+  updateRecommendationStatusController,
+  deleteRecommendationController,
+} = require("../controllers/recommendation.controller");
 
 const {
   plantIdSchema,
@@ -19,55 +21,44 @@ const {
 
 const router = express.Router();
 
+// All recommendation endpoints require authentication.
 router.use(authenticate);
 
+// Generate personalized AI recommendations.
+router.post(
+  "/plants/:plantId/recommendations/generate",
+  validate(plantIdSchema, "params"),
+  generatePlantRecommendationsController
+);
+
+// Retrieve recommendations for a plant.
 router.get(
   "/plants/:plantId/recommendations",
-  validate(
-    plantIdSchema,
-    "params"
-  ),
-  validate(
-    recommendationQuerySchema,
-    "query"
-  ),
-  getPlantRecommendations
+  validate(plantIdSchema, "params"),
+  validate(recommendationQuerySchema, "query"),
+  getPlantRecommendationsController
 );
 
+// Retrieve a specific recommendation.
 router.get(
   "/plants/:plantId/recommendations/:recommendationId",
-  validate(
-    plantIdSchema.merge(
-      recommendationIdSchema
-    ),
-    "params"
-  ),
-  getRecommendationById
+  validate(recommendationIdSchema, "params"),
+  getRecommendationByIdController
 );
 
+// Update recommendation status.
 router.patch(
   "/plants/:plantId/recommendations/:recommendationId/status",
-  validate(
-    plantIdSchema.merge(
-      recommendationIdSchema
-    ),
-    "params"
-  ),
-  validate(
-    updateRecommendationStatusSchema
-  ),
-  updateRecommendationStatus
+  validate(recommendationIdSchema, "params"),
+  validate(updateRecommendationStatusSchema, "body"),
+  updateRecommendationStatusController
 );
 
+// Delete a recommendation.
 router.delete(
   "/plants/:plantId/recommendations/:recommendationId",
-  validate(
-    plantIdSchema.merge(
-      recommendationIdSchema
-    ),
-    "params"
-  ),
-  deleteRecommendation
+  validate(recommendationIdSchema, "params"),
+  deleteRecommendationController
 );
 
 module.exports = router;

@@ -1,125 +1,137 @@
-const ApiResponse = require("../utils/ApiResponse");
+
 const asyncHandler = require("../utils/asyncHandler");
+const ApiResponse = require("../utils/ApiResponse");
 
-const recommendationService = require("../services/ai/recommendation.service");
+const {
+  getPlantRecommendations,
+  getRecommendationById,
+  updateRecommendationStatus,
+  deleteRecommendation,
+} = require("../services/ai/recommendation.service");
 
-const getPlantRecommendations =
-  asyncHandler(async (req, res) => {
-    const page = Math.max(
-      Number.parseInt(
-        req.query.page,
-        10
-      ) || 1,
-      1
-    );
+const {
+  generatePlantRecommendations,
+} = require("../services/ai/recommendation-generation.service");
 
-    const limit = Math.min(
-      Math.max(
-        Number.parseInt(
-          req.query.limit,
-          10
-        ) || 20,
-        1
-      ),
-      100
-    );
+// Generate personalized AI recommendations for a plant.
+const generatePlantRecommendationsController = asyncHandler(
+  async (req, res) => {
+    const result = await generatePlantRecommendations({
+      userId: req.user._id,
+      plantId: req.params.plantId,
+    });
 
-    const result =
-      await recommendationService.getPlantRecommendations(
-        req.user._id,
-        req.params.plantId,
-        {
-          page,
-          limit,
-          status: req.query.status,
-          category: req.query.category,
-          priority: req.query.priority,
-          activeOnly:
-            req.query.activeOnly ===
-            "true",
-        }
-      );
-
-    res.status(200).json(
+    return res.status(201).json(
       new ApiResponse(
-        200,
-        "Recommendations retrieved successfully.",
+        201,
+        "AI recommendations generated successfully.",
         {
-          recommendations:
-            result.recommendations.map(
-              (recommendation) =>
-                recommendation.toSafeObject()
-            ),
-          pagination:
-            result.pagination,
+          recommendations: result.recommendations.map((recommendation) =>
+            recommendation.toSafeObject()
+          ),
+          model: result.model,
+          generatedAt: result.generatedAt,
         }
       )
     );
-  });
+  }
+);
 
-const getRecommendationById =
-  asyncHandler(async (req, res) => {
-    const recommendation =
-      await recommendationService.getRecommendationById(
-        req.user._id,
-        req.params.plantId,
-        req.params.recommendationId
-      );
+// Get recommendations for a specific plant.
+const getPlantRecommendationsController = asyncHandler(
+  async (req, res) => {
+    const { plantId } = req.params;
 
-    res.status(200).json(
+    const result = await getPlantRecommendations(
+      req.user._id,
+      plantId,
+      req.query
+    );
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        "Plant recommendations retrieved successfully.",
+        {
+          recommendations: result.recommendations.map((recommendation) =>
+            recommendation.toSafeObject()
+          ),
+          pagination: result.pagination,
+        }
+      )
+    );
+  }
+);
+
+// Get one recommendation by ID.
+const getRecommendationByIdController = asyncHandler(
+  async (req, res) => {
+    const { plantId, recommendationId } = req.params;
+
+    const recommendation = await getRecommendationById(
+      req.user._id,
+      plantId,
+      recommendationId
+    );
+
+    return res.status(200).json(
       new ApiResponse(
         200,
         "Recommendation retrieved successfully.",
-        {
-          recommendation:
-            recommendation.toSafeObject(),
-        }
+        recommendation.toSafeObject()
       )
     );
-  });
+  }
+);
 
-const updateRecommendationStatus =
-  asyncHandler(async (req, res) => {
-    const recommendation =
-      await recommendationService.updateRecommendationStatus(
-        req.user._id,
-        req.params.plantId,
-        req.params.recommendationId,
-        req.body.status
-      );
+// Update a recommendation's status.
+const updateRecommendationStatusController = asyncHandler(
+  async (req, res) => {
+    const { plantId, recommendationId } = req.params;
+    const { status } = req.body;
 
-    res.status(200).json(
+    const recommendation = await updateRecommendationStatus(
+      req.user._id,
+      plantId,
+      recommendationId,
+      status
+    );
+
+    return res.status(200).json(
       new ApiResponse(
         200,
         "Recommendation status updated successfully.",
-        {
-          recommendation:
-            recommendation.toSafeObject(),
-        }
+        recommendation.toSafeObject()
       )
     );
-  });
+  }
+);
 
-const deleteRecommendation =
-  asyncHandler(async (req, res) => {
-    await recommendationService.deleteRecommendation(
+// Delete a recommendation.
+const deleteRecommendationController = asyncHandler(
+  async (req, res) => {
+    const { plantId, recommendationId } = req.params;
+
+    await deleteRecommendation(
       req.user._id,
-      req.params.plantId,
-      req.params.recommendationId
+      plantId,
+      recommendationId
     );
 
-    res.status(200).json(
+    return res.status(200).json(
       new ApiResponse(
         200,
         "Recommendation deleted successfully.",
         null
       )
     );
-  });
+  }
+);
 
 module.exports = {
-  getPlantRecommendations,
-  getRecommendationById,
-  updateRecommendationStatus,
-  deleteRecommendation,
+  generatePlantRecommendationsController,
+  getPlantRecommendationsController,
+  getRecommendationByIdController,
+  updateRecommendationStatusController,
+  deleteRecommendationController,
 };

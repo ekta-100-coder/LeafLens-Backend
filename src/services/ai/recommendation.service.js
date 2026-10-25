@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 
 const Recommendation = require("../../models/Recommendation");
@@ -5,26 +6,14 @@ const Plant = require("../../models/Plant");
 
 const ApiError = require("../../utils/ApiError");
 
-const validateObjectId = (
-  id,
-  fieldName = "ID"
-) => {
+const validateObjectId = (id, fieldName = "ID") => {
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    throw new ApiError(
-      400,
-      `Invalid ${fieldName}.`
-    );
+    throw new ApiError(400, `Invalid ${fieldName}.`);
   }
 };
 
-const verifyPlantOwnership = async (
-  userId,
-  plantId
-) => {
-  validateObjectId(
-    plantId,
-    "plant ID"
-  );
+const verifyPlantOwnership = async (userId, plantId) => {
+  validateObjectId(plantId, "plant ID");
 
   const plant = await Plant.findOne({
     _id: plantId,
@@ -32,42 +21,35 @@ const verifyPlantOwnership = async (
   });
 
   if (!plant) {
-    throw new ApiError(
-      404,
-      "Plant not found."
-    );
+    throw new ApiError(404, "Plant not found.");
   }
 
   return plant;
 };
 
-const createRecommendation = async (
-  userId,
-  recommendationData
-) => {
-  await verifyPlantOwnership(
-    userId,
-    recommendationData.plant
-  );
+// Create a recommendation for a plant owned by the user.
+const createRecommendation = async (userId, recommendationData) => {
+  if (!recommendationData || !recommendationData.plant) {
+    throw new ApiError(400, "Plant ID is required.");
+  }
 
-  const recommendation =
-    await Recommendation.create({
-      ...recommendationData,
-      user: userId,
-    });
+  await verifyPlantOwnership(userId, recommendationData.plant);
+
+  const recommendation = await Recommendation.create({
+    ...recommendationData,
+    user: userId,
+  });
 
   return recommendation;
 };
 
+// Retrieve paginated recommendations with optional filters.
 const getPlantRecommendations = async (
   userId,
   plantId,
   options = {}
 ) => {
-  await verifyPlantOwnership(
-    userId,
-    plantId
-  );
+  await verifyPlantOwnership(userId, plantId);
 
   const {
     page = 1,
@@ -78,14 +60,30 @@ const getPlantRecommendations = async (
     activeOnly = false,
   } = options;
 
-  const skip = (page - 1) * limit;
+  const normalizedPage = Number(page);
+  const normalizedLimit = Number(limit);
+
+  if (
+    !Number.isInteger(normalizedPage) ||
+    normalizedPage < 1 ||
+    !Number.isInteger(normalizedLimit) ||
+    normalizedLimit < 1 ||
+    normalizedLimit > 100
+  ) {
+    throw new ApiError(400, "Invalid pagination parameters.");
+  }
+
+  const shouldReturnActiveOnly =
+    activeOnly === true || activeOnly === "true";
+
+  const skip = (normalizedPage - 1) * normalizedLimit;
 
   const filter = {
     plant: plantId,
     user: userId,
   };
 
-  if (activeOnly) {
+  if (shouldReturnActiveOnly) {
     filter.status = "active";
   } else if (status) {
     filter.status = status;
@@ -99,185 +97,152 @@ const getPlantRecommendations = async (
     filter.priority = priority;
   }
 
-  const [recommendations, total] =
-    await Promise.all([
-      Recommendation.find(filter)
-        .sort({
-          priority: -1,
-          createdAt: -1,
-        })
-        .skip(skip)
-        .limit(limit),
+  const [recommendations, total] = await Promise.all([
+    Recommendation.find(filter)
+      .sort({
+        priority: -1,
+        createdAt: -1,
+      })
+      .skip(skip)
+      .limit(normalizedLimit),
 
-      Recommendation.countDocuments(filter),
-    ]);
+    Recommendation.countDocuments(filter),
+  ]);
 
   return {
     recommendations,
     pagination: {
-      page,
-      limit,
+      page: normalizedPage,
+      limit: normalizedLimit,
       total,
-      totalPages: Math.ceil(
-        total / limit
-      ),
-      hasNextPage:
-        page * limit < total,
-      hasPreviousPage: page > 1,
+      totalPages: Math.ceil(total / normalizedLimit),
+      hasNextPage: normalizedPage * normalizedLimit < total,
+      hasPreviousPage: normalizedPage > 1,
     },
   };
 };
 
+// Retrieve one recommendation belonging to the user and plant.
 const getRecommendationById = async (
   userId,
   plantId,
   recommendationId
 ) => {
-  validateObjectId(
-    recommendationId,
-    "recommendation ID"
-  );
+  validateObjectId(recommendationId, "recommendation ID");
 
-  await verifyPlantOwnership(
-    userId,
-    plantId
-  );
+  await verifyPlantOwnership(userId, plantId);
 
-  const recommendation =
-    await Recommendation.findOne({
-      _id: recommendationId,
-      plant: plantId,
-      user: userId,
-    });
+  const recommendation = await Recommendation.findOne({
+    _id: recommendationId,
+    plant: plantId,
+    user: userId,
+  });
 
   if (!recommendation) {
-    throw new ApiError(
-      404,
-      "Recommendation not found."
-    );
+    throw new ApiError(404, "Recommendation not found.");
   }
 
   return recommendation;
 };
 
-const updateRecommendationStatus =
-  async (
-    userId,
-    plantId,
-    recommendationId,
-    status
-  ) => {
-    validateObjectId(
-      recommendationId,
-      "recommendation ID"
-    );
+// Update recommendation status and maintain status timestamps.
+const updateRecommendationStatus = async (
+  userId,
+  plantId,
+  recommendationId,
+  status
+) => {
+  validateObjectId(recommendationId, "recommendation ID");
 
-    await verifyPlantOwnership(
-      userId,
-      plantId
-    );
+  const allowedStatuses = ["active", "completed", "dismissed"];
 
-    const updateData = {
-      status,
-    };
+  if (!allowedStatuses.includes(status)) {
+    throw new ApiError(400, "Invalid recommendation status.");
+  }
 
-    if (status === "completed") {
-      updateData.completedAt =
-        new Date();
-      updateData.dismissedAt = null;
-    }
+  await verifyPlantOwnership(userId, plantId);
 
-    if (status === "dismissed") {
-      updateData.dismissedAt =
-        new Date();
-      updateData.completedAt = null;
-    }
+  const now = new Date();
 
-    if (status === "active") {
-      updateData.completedAt = null;
-      updateData.dismissedAt = null;
-    }
-
-    const recommendation =
-      await Recommendation.findOneAndUpdate(
-        {
-          _id: recommendationId,
-          plant: plantId,
-          user: userId,
-        },
-        {
-          $set: updateData,
-        },
-        {
-          new: true,
-          runValidators: true,
-        }
-      );
-
-    if (!recommendation) {
-      throw new ApiError(
-        404,
-        "Recommendation not found."
-      );
-    }
-
-    return recommendation;
+  const updateData = {
+    status,
   };
 
+  if (status === "completed") {
+    updateData.completedAt = now;
+    updateData.dismissedAt = null;
+  } else if (status === "dismissed") {
+    updateData.dismissedAt = now;
+    updateData.completedAt = null;
+  } else {
+    updateData.completedAt = null;
+    updateData.dismissedAt = null;
+  }
+
+  const recommendation = await Recommendation.findOneAndUpdate(
+    {
+      _id: recommendationId,
+      plant: plantId,
+      user: userId,
+    },
+    {
+      $set: updateData,
+    },
+    {
+      new: true,
+      runValidators: true,
+    }
+  );
+
+  if (!recommendation) {
+    throw new ApiError(404, "Recommendation not found.");
+  }
+
+  return recommendation;
+};
+
+// Delete a recommendation belonging to the authenticated user.
 const deleteRecommendation = async (
   userId,
   plantId,
   recommendationId
 ) => {
-  validateObjectId(
-    recommendationId,
-    "recommendation ID"
-  );
+  validateObjectId(recommendationId, "recommendation ID");
 
-  await verifyPlantOwnership(
-    userId,
-    plantId
-  );
+  await verifyPlantOwnership(userId, plantId);
 
-  const recommendation =
-    await Recommendation.findOneAndDelete({
-      _id: recommendationId,
-      plant: plantId,
-      user: userId,
-    });
+  const recommendation = await Recommendation.findOneAndDelete({
+    _id: recommendationId,
+    plant: plantId,
+    user: userId,
+  });
 
   if (!recommendation) {
-    throw new ApiError(
-      404,
-      "Recommendation not found."
-    );
+    throw new ApiError(404, "Recommendation not found.");
   }
 
   return recommendation;
 };
 
-const expireRecommendations = async (
-  now = new Date()
-) => {
-  const result =
-    await Recommendation.updateMany(
-      {
-        status: "active",
-        expiresAt: {
-          $ne: null,
-          $lte: now,
-        },
+// Expire active recommendations whose expiry date has passed.
+const expireRecommendations = async (now = new Date()) => {
+  const result = await Recommendation.updateMany(
+    {
+      status: "active",
+      expiresAt: {
+        $ne: null,
+        $lte: now,
       },
-      {
-        $set: {
-          status: "expired",
-        },
-      }
-    );
+    },
+    {
+      $set: {
+        status: "expired",
+      },
+    }
+  );
 
   return {
-    modifiedCount:
-      result.modifiedCount,
+    modifiedCount: result.modifiedCount,
   };
 };
 
