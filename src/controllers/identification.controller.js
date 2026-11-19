@@ -26,8 +26,8 @@ const identifyPlantController =
       .json(
         new ApiResponse(
           201,
-          identification.toSafeObject(),
-          "Plant identified successfully."
+          "Plant identified successfully.",
+          identification.toSafeObject()
         )
       );
   });
@@ -51,8 +51,8 @@ const getIdentificationController =
       .json(
         new ApiResponse(
           200,
-          identification.toSafeObject(),
-          "Identification result retrieved successfully."
+          "Identification result retrieved successfully.",
+          identification.toSafeObject()
         )
       );
   });
@@ -74,6 +74,7 @@ const getIdentificationHistoryController =
       .json(
         new ApiResponse(
           200,
+          "Identification history retrieved successfully.",
           {
             identifications:
               history.identifications.map(
@@ -82,8 +83,7 @@ const getIdentificationHistoryController =
               ),
             pagination:
               history.pagination,
-          },
-          "Identification history retrieved successfully."
+          }
         )
       );
   });
